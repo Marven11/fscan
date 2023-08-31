@@ -5,12 +5,15 @@ sets:
     - admin
     - root
     - manager
+    - s3cret
   password:
     - ""
     - admin
     - tomcat
     - 123456
     - root
+    - manager
+    - s3cret
   payload:
     - base64(username+":"+password)
 rules:
