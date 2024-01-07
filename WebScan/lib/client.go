@@ -9,11 +9,10 @@ import (
 	"github.com/shadow1ng/fscan/common"
 	"golang.org/x/net/proxy"
 	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -25,11 +24,17 @@ var (
 	keepAlive        = 5 * time.Second
 )
 
-func Inithttp(PocInfo common.PocInfo) {
-	//PocInfo.Proxy = "http://127.0.0.1:8080"
+func Inithttp() {
+	//common.Proxy = "http://127.0.0.1:8080"
+	if common.PocNum == 0 {
+		common.PocNum = 20
+	}
+	if common.WebTimeout == 0 {
+		common.WebTimeout = 5
+	}
 	err := InitHttpClient(common.PocNum, common.Proxy, time.Duration(common.WebTimeout)*time.Second)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 }
 
@@ -46,7 +51,7 @@ func InitHttpClient(ThreadsNum int, DownProxy string, Timeout time.Duration) err
 		MaxIdleConns:        0,
 		MaxIdleConnsPerHost: ThreadsNum * 2,
 		IdleConnTimeout:     keepAlive,
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: true},
+		TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS10, InsecureSkipVerify: true},
 		TLSHandshakeTimeout: 5 * time.Second,
 		DisableKeepAlives:   false,
 	}
@@ -241,7 +246,7 @@ func SelectPoc(Pocs embed.FS, pocname string) []string {
 
 func LoadPocbyPath(fileName string) (*Poc, error) {
 	p := &Poc{}
-	data, err := ioutil.ReadFile(fileName)
+	data, err := os.ReadFile(fileName)
 	if err != nil {
 		fmt.Printf("[-] load poc %s error3: %v\n", fileName, err)
 		return nil, err

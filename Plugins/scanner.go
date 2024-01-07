@@ -17,13 +17,13 @@ func Scan(info common.HostInfo) {
 		fmt.Println("len(hosts)==0", err)
 		return
 	}
-	lib.Inithttp(common.Pocinfo)
+	lib.Inithttp()
 	var ch = make(chan struct{}, common.Threads)
 	var wg = sync.WaitGroup{}
 	web := strconv.Itoa(common.PORTList["web"])
 	ms17010 := strconv.Itoa(common.PORTList["ms17010"])
 	if len(Hosts) > 0 || len(common.HostPort) > 0 {
-		if common.NoPing == false && len(Hosts) > 0 {
+		if common.NoPing == false && len(Hosts) > 1 || common.Scantype == "icmp" {
 			Hosts = CheckLive(Hosts, common.Ping)
 			fmt.Println("[*] Icmp alive hosts len is:", len(Hosts))
 		}
@@ -31,15 +31,14 @@ func Scan(info common.HostInfo) {
 			common.LogWG.Wait()
 			return
 		}
-		common.GC()
 		var AlivePorts []string
 		if common.Scantype == "webonly" || common.Scantype == "webpoc" {
-			AlivePorts = NoPortScan(Hosts, info.Ports)
+			AlivePorts = NoPortScan(Hosts, common.Ports)
 		} else if common.Scantype == "hostname" {
-			info.Ports = "139"
-			AlivePorts = NoPortScan(Hosts, info.Ports)
+			common.Ports = "139"
+			AlivePorts = NoPortScan(Hosts, common.Ports)
 		} else if len(Hosts) > 0 {
-			AlivePorts = PortScan(Hosts, info.Ports, common.Timeout)
+			AlivePorts = PortScan(Hosts, common.Ports, common.Timeout)
 			fmt.Println("[*] alive ports len is:", len(AlivePorts))
 			if common.Scantype == "portscan" {
 				common.LogWG.Wait()
@@ -52,7 +51,6 @@ func Scan(info common.HostInfo) {
 			common.HostPort = nil
 			fmt.Println("[*] AlivePorts len is:", len(AlivePorts))
 		}
-		common.GC()
 		var severports []string //severports := []string{"21","22","135"."445","1433","3306","5432","6379","9200","11211","27017"...}
 		for _, port := range common.PORTList {
 			severports = append(severports, strconv.Itoa(port))
@@ -85,16 +83,14 @@ func Scan(info common.HostInfo) {
 			}
 		}
 	}
-	common.GC()
 	for _, url := range common.Urls {
 		info.Url = url
 		AddScan(web, info, &ch, &wg)
 	}
-	common.GC()
 	wg.Wait()
 	common.LogWG.Wait()
 	close(common.Results)
-	fmt.Println(fmt.Sprintf("已完成 %v/%v", common.End, common.Num))
+	fmt.Printf("已完成 %v/%v\n", common.End, common.Num)
 }
 
 var Mutex = &sync.Mutex{}

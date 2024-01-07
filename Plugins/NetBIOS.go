@@ -12,17 +12,17 @@ import (
 	"time"
 )
 
-var netbioserr = errors.New("netbios error")
+var errNetBIOS = errors.New("netbios error")
 
 func NetBIOS(info *common.HostInfo) error {
 	netbios, _ := NetBIOS1(info)
 	output := netbios.String()
 	if len(output) > 0 {
-		result := fmt.Sprintf("[*] NetBios: %-15s %s", info.Host, output)
+		result := fmt.Sprintf("[*] NetBios %-15s %s", info.Host, output)
 		common.LogSuccess(result)
 		return nil
 	}
-	return netbioserr
+	return errNetBIOS
 }
 
 func NetBIOS1(info *common.HostInfo) (netbios NetBiosInfo, err error) {
@@ -41,14 +41,10 @@ func NetBIOS1(info *common.HostInfo) (netbios NetBiosInfo, err error) {
 	realhost := fmt.Sprintf("%s:%v", info.Host, info.Ports)
 	var conn net.Conn
 	conn, err = common.WrapperTcpWithTimeout("tcp", realhost, time.Duration(common.Timeout)*time.Second)
-	defer func() {
-		if conn != nil {
-			conn.Close()
-		}
-	}()
 	if err != nil {
 		return
 	}
+	defer conn.Close()
 	err = conn.SetDeadline(time.Now().Add(time.Duration(common.Timeout) * time.Second))
 	if err != nil {
 		return
@@ -93,14 +89,10 @@ func GetNbnsname(info *common.HostInfo) (netbios NetBiosInfo, err error) {
 	//senddata1 := []byte("ff\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00 CKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\x00\x00!\x00\x01")
 	realhost := fmt.Sprintf("%s:137", info.Host)
 	conn, err := net.DialTimeout("udp", realhost, time.Duration(common.Timeout)*time.Second)
-	defer func() {
-		if conn != nil {
-			conn.Close()
-		}
-	}()
 	if err != nil {
 		return
 	}
+	defer conn.Close()
 	err = conn.SetDeadline(time.Now().Add(time.Duration(common.Timeout) * time.Second))
 	if err != nil {
 		return
@@ -249,7 +241,7 @@ func (info *NetBiosInfo) String() (output string) {
 
 func ParseNetBios(input []byte) (netbios NetBiosInfo, err error) {
 	if len(input) < 57 {
-		err = netbioserr
+		err = errNetBIOS
 		return
 	}
 	data := input[57:]
@@ -281,7 +273,7 @@ func ParseNetBios(input []byte) (netbios NetBiosInfo, err error) {
 		}
 	}
 	if len(msg) == 0 {
-		err = netbioserr
+		err = errNetBIOS
 		return
 	}
 	err = yaml.Unmarshal([]byte(msg), &netbios)
@@ -293,7 +285,7 @@ func ParseNetBios(input []byte) (netbios NetBiosInfo, err error) {
 
 func ParseNTLM(ret []byte) (netbios NetBiosInfo, err error) {
 	if len(ret) < 47 {
-		err = netbioserr
+		err = errNetBIOS
 		return
 	}
 	var num1, num2 int
@@ -328,7 +320,7 @@ func ParseNTLM(ret []byte) (netbios NetBiosInfo, err error) {
 		return
 	}
 	length = num1 + num2*256
-	num1, err = bytetoint(ret[start+44 : start+45][0])
+	_, err = bytetoint(ret[start+44 : start+45][0])
 	if err != nil {
 		return
 	}

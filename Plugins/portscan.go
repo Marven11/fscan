@@ -17,6 +17,10 @@ type Addr struct {
 func PortScan(hostslist []string, ports string, timeout int64) []string {
 	var AliveAddress []string
 	probePorts := common.ParsePort(ports)
+	if len(probePorts) == 0 {
+		fmt.Printf("[-] parse port %s error, please check your port format\n", ports)
+		return AliveAddress
+	}
 	noPorts := common.ParsePort(common.NoPorts)
 	if len(noPorts) > 0 {
 		temp := map[int]struct{}{}
@@ -29,7 +33,7 @@ func PortScan(hostslist []string, ports string, timeout int64) []string {
 		}
 
 		var newDatas []int
-		for port, _ := range temp {
+		for port := range temp {
 			newDatas = append(newDatas, port)
 		}
 		probePorts = newDatas
@@ -74,12 +78,8 @@ func PortScan(hostslist []string, ports string, timeout int64) []string {
 func PortConnect(addr Addr, respondingHosts chan<- string, adjustedTimeout int64, wg *sync.WaitGroup) {
 	host, port := addr.ip, addr.port
 	conn, err := common.WrapperTcpWithTimeout("tcp4", fmt.Sprintf("%s:%v", host, port), time.Duration(adjustedTimeout)*time.Second)
-	defer func() {
-		if conn != nil {
-			conn.Close()
-		}
-	}()
 	if err == nil {
+		defer conn.Close()
 		address := host + ":" + strconv.Itoa(port)
 		result := fmt.Sprintf("%s open", address)
 		common.LogSuccess(result)

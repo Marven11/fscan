@@ -36,8 +36,13 @@ func RdpScan(info *common.HostInfo) (tmperr error) {
 	var num = 0
 	var all = len(common.Userdict["rdp"]) * len(common.Passwords)
 	var mutex sync.Mutex
-	brlist := make(chan Brutelist, all)
+	brlist := make(chan Brutelist)
 	port, _ := strconv.Atoi(info.Ports)
+
+	for i := 0; i < common.BruteThread; i++ {
+		wg.Add(1)
+		go worker(info.Host, common.Domain, port, &wg, brlist, &signal, &num, all, &mutex, common.Timeout)
+	}
 
 	for _, user := range common.Userdict["rdp"] {
 		for _, pass := range common.Passwords {
@@ -45,12 +50,6 @@ func RdpScan(info *common.HostInfo) (tmperr error) {
 			brlist <- Brutelist{user, pass}
 		}
 	}
-
-	for i := 0; i < common.BruteThread; i++ {
-		wg.Add(1)
-		go worker(info.Host, common.Domain, port, &wg, brlist, &signal, &num, all, &mutex, common.Timeout)
-	}
-
 	close(brlist)
 	go func() {
 		wg.Wait()
@@ -74,9 +73,9 @@ func worker(host, domain string, port int, wg *sync.WaitGroup, brlist chan Brute
 		if flag == true && err == nil {
 			var result string
 			if domain != "" {
-				result = fmt.Sprintf("[+] RDP:%v:%v:%v\\%v %v", host, port, domain, user, pass)
+				result = fmt.Sprintf("[+] RDP %v:%v:%v\\%v %v", host, port, domain, user, pass)
 			} else {
-				result = fmt.Sprintf("[+] RDP:%v:%v:%v %v", host, port, user, pass)
+				result = fmt.Sprintf("[+] RDP %v:%v:%v %v", host, port, user, pass)
 			}
 			common.LogSuccess(result)
 			*signal = true
@@ -127,14 +126,10 @@ func NewClient(host string, logLevel glog.LEVEL) *Client {
 
 func (g *Client) Login(domain, user, pwd string, timeout int64) error {
 	conn, err := common.WrapperTcpWithTimeout("tcp", g.Host, time.Duration(timeout)*time.Second)
-	defer func() {
-		if conn != nil {
-			conn.Close()
-		}
-	}()
 	if err != nil {
 		return fmt.Errorf("[dial err] %v", err)
 	}
+	defer conn.Close()
 	glog.Info(conn.LocalAddr().String())
 
 	g.tpkt = tpkt.New(core.NewSocketLayer(conn), nla.NewNTLMv2(domain, user, pwd))

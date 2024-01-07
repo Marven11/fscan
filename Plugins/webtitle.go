@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -27,7 +26,7 @@ func WebTitle(info *common.HostInfo) error {
 	err, CheckData := GOWebTitle(info)
 	info.Infostr = WebScan.InfoCheck(info.Url, &CheckData)
 
-	if common.IsWebCan == false && err == nil {
+	if !common.NoPoc && err == nil {
 		WebScan.WebScan(info)
 	} else {
 		errlog := fmt.Sprintf("[-] webtitle %v %v", info.Url, err)
@@ -75,7 +74,7 @@ func GOWebTitle(info *common.HostInfo) (err error, CheckData []WebScan.CheckData
 		//有跳转
 		if strings.Contains(result, "://") {
 			info.Url = result
-			err, result, CheckData = geturl(info, 3, CheckData)
+			err, _, CheckData = geturl(info, 3, CheckData)
 			if err != nil {
 				return
 			}
@@ -138,12 +137,12 @@ func geturl(info *common.HostInfo, flag int, CheckData []WebScan.CheckDatas) (er
 	if err != nil {
 		return err, "https", CheckData
 	}
-	if !utf8.Valid(body) {
-		body, _ = simplifiedchinese.GBK.NewDecoder().Bytes(body)
-	}
-	CheckData = append(CheckData, WebScan.CheckDatas{Body: body, Headers: fmt.Sprintf("%s", resp.Header)})
+	CheckData = append(CheckData, WebScan.CheckDatas{body, fmt.Sprintf("%s", resp.Header)})
 	var reurl string
 	if flag != 2 {
+		if !utf8.Valid(body) {
+			body, _ = simplifiedchinese.GBK.NewDecoder().Bytes(body)
+		}
 		title = gettitle(body)
 		length := resp.Header.Get("Content-Length")
 		if length == "" {
@@ -153,7 +152,7 @@ func geturl(info *common.HostInfo, flag int, CheckData []WebScan.CheckDatas) (er
 		if err1 == nil {
 			reurl = redirURL.String()
 		}
-		result := fmt.Sprintf("[*] WebTitle: %-25v code:%-3v len:%-6v title:%v", resp.Request.URL, resp.StatusCode, length, title)
+		result := fmt.Sprintf("[*] WebTitle %-25v code:%-3v len:%-6v title:%v", resp.Request.URL, resp.StatusCode, length, title)
 		if reurl != "" {
 			result += fmt.Sprintf(" 跳转url: %s", reurl)
 		}
@@ -188,7 +187,7 @@ func getRespBody(oResp *http.Response) ([]byte, error) {
 			body = append(body, buf...)
 		}
 	} else {
-		raw, err := ioutil.ReadAll(oResp.Body)
+		raw, err := io.ReadAll(oResp.Body)
 		if err != nil {
 			return nil, err
 		}
@@ -209,9 +208,11 @@ func gettitle(body []byte) (title string) {
 		if len(title) > 100 {
 			title = title[:100]
 		}
-	}
-	if title == "" {
-		title = "None"
+		if title == "" {
+			title = "\"\"" //空格
+		}
+	} else {
+		title = "None" //没有title
 	}
 	return
 }
@@ -230,7 +231,7 @@ func GetProtocol(host string, Timeout int64) (protocol string) {
 	if err != nil {
 		return
 	}
-	conn := tls.Client(socksconn, &tls.Config{InsecureSkipVerify: true})
+	conn := tls.Client(socksconn, &tls.Config{MinVersion: tls.VersionTLS10, InsecureSkipVerify: true})
 	defer func() {
 		if conn != nil {
 			defer func() {
